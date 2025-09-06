@@ -1,0 +1,233 @@
+% Корреляционный анализ параметров пристеночной плазмы из
+% экспериментальной кампании весны 2014 года на Т-10. 
+% 
+% by Mark 06.09.2025
+% 
+%% Data import
+clear
+clc
+file_num = 7;
+    
+addpath(genpath('C:\Users\MSI\Desktop\Курчатовский институт\Т-10 Анализ рядов')) % вспомогательные функции и все такое
+time_series = readmatrix(['T10_66131_Lpf' num2str(file_num) '.txt']);
+cd(['C:\Users\MSI\Desktop\T-10 attractors']);
+time = time_series(:,1);
+fp = time_series(:,2);
+
+
+
+%% Visualization 1
+figure;
+
+plot(time,fp,'k')
+title("$Floating\ potential\ as\ time\ series$",Interpreter="latex")
+xlabel("$Time,\ ms$",Interpreter="latex")
+ylabel("$Floating\ potential,\ V$",Interpreter="latex")
+set(gca, 'FontSize', 16, 'LineWidth', 2)
+set(gcf, 'Color', 'white')
+
+
+
+
+%% Analysis interval 
+
+% Выбираем для анализа интервал по времени 
+time_min = 400;
+time_max = 900;
+% Создаем маску для индексов
+mask = (time >= time_min) & (time <= time_max);
+% Извлекаем данные
+time = time(mask);
+fp = fp(mask);
+
+%% Visualization 2
+figure;
+
+plot(time,fp,'k')
+title("$Floating\ potential\ as\ time\ series$",Interpreter="latex")
+xlabel("$Time,\ ms$",Interpreter="latex")
+ylabel("$Floating\ potential,\ V$",Interpreter="latex")
+set(gca, 'FontSize', 16, 'LineWidth', 2)
+set(gcf, 'Color', 'white')
+
+%% PDF
+
+% Данные (нормированные)
+x = (fp - mean(fp)) / std(fp);  
+
+% Оценка плотности с помощью ядра
+[f_pdf, xi] = ksdensity(x,NumPoints=length(x)/1000);
+
+
+figure; hold on;
+
+
+plot(xi, f_pdf, '.', 'MarkerSize', 12, 'Color', 'k');
+
+% Гауссиан
+x_gauss = linspace(min(xi), max(xi), 500);
+y_gauss = (1/sqrt(2*pi)) * exp(-0.5 * x_gauss.^2);
+plot(x_gauss, y_gauss, 'b', 'LineWidth', 2);
+
+xlabel('$Normalized\ floating\ potential\ (V)$', 'Interpreter','latex');
+ylabel('$Probability\ density$', 'Interpreter','latex');
+title('$PDF\ of\ normalized\ floating\ potential\ vs\ standard\ Gaussian$', 'Interpreter','latex');
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+legend({'$Experimental\ PDF$ ','$Standard\ Gaussian$'}, 'Interpreter','latex');
+grid on
+
+
+%% Fourier Spectrum
+
+dt = mean(diff(time));
+Fs = 1/dt;                % частота дискретизации
+N = length(fp);           % число точек
+FP_fft = fft(fp);            % прямое преобразование Фурье
+FP_mag = abs(FP_fft)/N;      % амплитуда (нормируем)
+f = (0:N-1)*(Fs/N);          % частоты от 0 до Fs
+figure;
+loglog(f(1:floor(N/2)), 2*FP_mag(1:floor(N/2)), 'k', 'LineWidth', 1.5); 
+labels = [title('$Fourier\ spectrum\ of\ signal\ (log-log\ scale)$', 'FontSize', 14), ...
+          xlabel('$f, Hz$', 'FontSize', 14), ...
+          ylabel('$s(f), rel.units$', 'FontSize', 14)];
+          
+set(labels, 'Interpreter', 'latex');
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% ACF
+
+
+fp0 = fp - mean(fp);
+
+[acf, lags] = xcorr(fp0, 'coeff');  % нормировка на 0-й лаг
+lags_time = lags * dt;
+
+
+figure;
+plot(lags_time, acf, 'k', 'LineWidth', 1.5);
+
+labels = [title('$ACF\ of\ the\ signal$', 'FontSize', 14), ...
+          xlabel('$\tau, \mu s$','FontSize',14), ...
+          ylabel('$R(\tau)$','FontSize',14);];
+
+set(labels, 'Interpreter', 'latex');
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+grid on;
+
+xlim([-5 5]) % +- 5 мкс ось
+
+%% Correlation integral 
+
+L = 9;                            % embedding depth
+
+p_values = 30:10:90;  % произвольные лаги ( в индексах)
+
+M = 200;                           % число вложенных векторов
+
+x = fp(:);                        % временной ряд
+
+colors = lines(length(p_values));  % набор цветов
+
+figure; hold on;
+
+for k = 1:length(p_values)
+    p = p_values(k);
+    
+   
+    [r, C] = correlation_integral(x, L, p, M);  
+    
+   
+    loglog(r, C,'o' , 'Color', colors(k,:), 'MarkerSize', 5, 'LineWidth', 1.5);
+end
+
+xlabel('$log\ r$', 'Interpreter','latex');
+ylabel('$log\ C(r)$', 'Interpreter','latex');
+title(['Correlation integral, L = ' num2str(L) ', M = ' num2str(M)], 'Interpreter','latex');
+grid on;
+
+legendStrings = arrayfun(@(p) ['p = ' num2str(p)], p_values, 'UniformOutput', false);
+legend(legendStrings, 'Interpreter','latex', 'Location','best');
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% XY Attractor
+p = 10;
+M = 50;
+Xplot = XY_Attractor(x,9,p,1000000); % XY-projection of trajectory in phase-space
+
+figure
+plot(Xplot(:,1), Xplot(:,2), 'k.', 'MarkerSize',10);
+xlabel('$X$', 'Interpreter','latex');
+ylabel('$Y$', 'Interpreter','latex');
+title('XY projection of attractor', 'Interpreter','latex');
+
+
+xlim_vals = xlim;
+ylim_vals = ylim;
+xpos = xlim_vals(2) - 0.2*diff(xlim_vals);
+ypos = ylim_vals(2) - 0.08*diff(ylim_vals);
+
+txt = sprintf('L(dimensions) = %d \n p(lag) = %d \n M(j-iterator) = %d', L, p, M);
+text(xpos, ypos, txt, 'FontSize', 18, 'Color', 'k', 'Interpreter','latex');
+
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+grid on;
+
+%% PCA 2D
+
+% --- PCA для снижения размерности до 2 ---
+[~, score, ~] = pca(Xplot);  % score - данные в главных компонентах
+X2D = score(:,1:2);              % первые 2 главные компоненты
+
+% --- 3D-проекция через PCA ---
+figure;
+plot(X2D(:,1), X2D(:,2), 'k.', 'MarkerSize', 10);
+xlabel('PC1', 'Interpreter','latex');
+ylabel('PC2', 'Interpreter','latex');
+title(['2D PCA projection of attractor, L = ' num2str(L) ', p = ' num2str(p)], 'Interpreter','latex');
+grid on;
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% XYZ attractor
+
+% --- 3D-проекция первых трёх координат ---
+figure;
+plot3(Xplot(:,1), Xplot(:,2), Xplot(:,3), 'k.', 'MarkerSize', 10);
+xlabel('X', 'Interpreter','latex');
+ylabel('Y', 'Interpreter','latex');
+zlabel('Z', 'Interpreter','latex');
+title(['3D projection of attractor, L = ' num2str(L) ', p = ' num2str(p) ', M = ' num2str(M)], 'Interpreter','latex');
+grid on;
+
+view(45,30); % угол обзора
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% PCA 3D
+
+% --- PCA для снижения размерности до 3 ---
+[coeff, score, ~] = pca(Xplot);  % score - данные в главных компонентах
+X2D = score(:,1:3);              % первые три главные компоненты
+
+% --- 3D-проекция через PCA ---
+figure;
+plot3(X2D(:,1), X2D(:,2), X2D(:,3), 'k.', 'MarkerSize', 10);
+xlabel('PC1', 'Interpreter','latex');
+ylabel('PC2', 'Interpreter','latex');
+zlabel('PC3', 'Interpreter','latex');
+title(['3D PCA projection of attractor, L = ' num2str(L) ', p = ' num2str(p)], 'Interpreter','latex');
+grid on;
+view(45,30);
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% Lyapunov Exponents

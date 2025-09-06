@@ -1,0 +1,177 @@
+% Корреляционный анализ параметров пристеночной плазмы из
+% экспериментальной кампании весны 2014 года на Т-10. 
+% 
+% by Mark 06.09.2025
+% 
+%% Data import
+clear
+clc
+file_num = 7;
+    
+addpath(genpath('C:\Users\MSI\Desktop\Курчатовский институт\Т-10 Анализ рядов')) % вспомогательные функции и все такое
+time_series = readmatrix(['T10_66131_Lpf' num2str(file_num) '.txt']);
+cd(['C:\Users\MSI\Desktop\T-10 attractors']);
+time = time_series(:,1);
+fp = time_series(:,2);
+
+
+
+%% Visualization 1
+figure;
+
+plot(time,fp,'k')
+title("$Floating\ potential\ as\ time\ series$",Interpreter="latex")
+xlabel("$Time,\ ms$",Interpreter="latex")
+ylabel("$Floating\ potential,\ V$",Interpreter="latex")
+set(gca, 'FontSize', 16, 'LineWidth', 2)
+set(gcf, 'Color', 'white')
+
+
+
+
+%% Analysis interval 
+
+% Выбираем для анализа интервал по времени 
+time_min = 400;
+time_max = 900;
+% Создаем маску для индексов
+mask = (time >= time_min) & (time <= time_max);
+% Извлекаем данные
+time = time(mask);
+fp = fp(mask);
+
+%% Visualization 2
+figure;
+
+plot(time,fp,'k')
+title("$Floating\ potential\ as\ time\ series$",Interpreter="latex")
+xlabel("$Time,\ ms$",Interpreter="latex")
+ylabel("$Floating\ potential,\ V$",Interpreter="latex")
+set(gca, 'FontSize', 16, 'LineWidth', 2)
+set(gcf, 'Color', 'white')
+
+%% PDF
+
+% Данные (нормированные)
+x = (fp - mean(fp)) / std(fp);  
+
+% Оценка плотности с помощью ядра
+[f_pdf, xi] = ksdensity(x,NumPoints=length(x)/1000);
+
+
+figure; hold on;
+
+
+plot(xi, f_pdf, '.', 'MarkerSize', 12, 'Color', 'k');
+
+% Гауссиан
+x_gauss = linspace(min(xi), max(xi), 500);
+y_gauss = (1/sqrt(2*pi)) * exp(-0.5 * x_gauss.^2);
+plot(x_gauss, y_gauss, 'b', 'LineWidth', 2);
+
+xlabel('$Normalized\ floating\ potential\ (V)$', 'Interpreter','latex');
+ylabel('$Probability\ density$', 'Interpreter','latex');
+title('$PDF\ of\ normalized\ floating\ potential\ vs\ standard\ Gaussian$', 'Interpreter','latex');
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+legend({'$Experimental\ PDF$ ','$Standard\ Gaussian$'}, 'Interpreter','latex');
+grid on
+
+
+%% Fourier Spectrum
+
+dt = mean(diff(time));
+Fs = 1/dt;                % частота дискретизации
+N = length(fp);           % число точек
+FP_fft = fft(fp);            % прямое преобразование Фурье
+FP_mag = abs(FP_fft)/N;      % амплитуда (нормируем)
+f = (0:N-1)*(Fs/N);          % частоты от 0 до Fs
+figure;
+loglog(f(1:floor(N/2)), 2*FP_mag(1:floor(N/2)), 'k', 'LineWidth', 1.5); 
+labels = [title('$Fourier\ spectrum\ of\ signal\ (log-log\ scale)$', 'FontSize', 14), ...
+          xlabel('$f, Hz$', 'FontSize', 14), ...
+          ylabel('$s(f), rel.units$', 'FontSize', 14)];
+          
+set(labels, 'Interpreter', 'latex');
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% ACF
+
+
+fp0 = fp - mean(fp);
+
+[acf, lags] = xcorr(fp0, 'coeff');  % нормировка на 0-й лаг
+lags_time = lags * dt;
+
+
+figure;
+plot(lags_time, acf, 'k', 'LineWidth', 1.5);
+xlabel('$\tau, \mu s$', 'Interpreter','latex', 'FontSize',14);
+ylabel('$R(\tau)$', 'Interpreter','latex', 'FontSize',14);
+title('ACF of the signal (with negative lags)', 'Interpreter','latex', 'FontSize',14);
+
+labels = [title('$ACF\ of\ the\ signal$', 'FontSize', 14), ...
+          xlabel('$\tau, \mu s$','FontSize',14), ...
+          ylabel('$R(\tau)$','FontSize',14);];
+
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+grid on;
+xlim([-5 5]) % +- 5 мкс ось
+
+%% Correlational integral 
+
+L = 9;                            % embedding depth
+p_values = 10:10:70;  % произвольные лаги ( в индексах)
+M = 500;                           % число вложенных векторов
+x = fp(:);                        % временной ряд
+
+colors = lines(length(p_values));  % набор цветов
+
+figure; hold on;
+for k = 1:length(p_values)
+    p = p_values(k);
+    
+    % --- Корреляционный интеграл ---
+    [r, C] = correlation_integral(x, L, p, M);  % функция должна быть заранее определена
+    
+    % --- Отрисовка на одном графике ---
+    loglog(r, C, '.-', 'Color', colors(k,:), 'MarkerSize', 10, 'LineWidth', 1.5);
+end
+
+xlabel('$r$', 'Interpreter','latex');
+ylabel('$C(r)$', 'Interpreter','latex');
+title(['Correlation integral, L = ' num2str(L) ', M = ' num2str(M)], 'Interpreter','latex');
+grid on;
+
+legendStrings = arrayfun(@(p) ['p = ' num2str(p)], p_values, 'UniformOutput', false);
+legend(legendStrings, 'Interpreter','latex', 'Location','best');
+
+set(gca,'FontSize',16,'LineWidth',2);
+set(gcf,'Color','white');
+
+%% XY-projection of trajectory in phase-space
+    Xplot = XY_Attractor(x,41,p,5e5); % XY-projection of trajectory in phase-space
+
+    figure
+    plot(Xplot(:,1), Xplot(:,2), 'k.', 'MarkerSize',10);
+    xlabel('$X$', 'Interpreter','latex');
+    ylabel('$Y$', 'Interpreter','latex');
+    title('XY projection of attractor', 'Interpreter','latex');
+
+    % --- Добавляем текст с параметрами на рисунке ---
+    xlim_vals = xlim;
+    ylim_vals = ylim;
+    xpos = xlim_vals(2) - 0.2*diff(xlim_vals);
+    ypos = ylim_vals(2) - 0.08*diff(ylim_vals);
+
+    txt = sprintf('L(dimensions) = %d \n p(lag) = %d \n M(j-iterator) = %d', L, p, M);
+    text(xpos, ypos, txt, 'FontSize', 18, 'Color', 'k', 'Interpreter','latex');
+
+
+    set(gca,'FontSize',16,'LineWidth',2);
+    set(gcf,'Color','white');
+    grid on;
