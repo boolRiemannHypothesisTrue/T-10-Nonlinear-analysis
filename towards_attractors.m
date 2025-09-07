@@ -9,8 +9,9 @@ clc
 file_num = 7;
     
 addpath(genpath('C:\Users\MSI\Desktop\Курчатовский институт\Т-10 Анализ рядов')) % вспомогательные функции и все такое
+addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\Wolf Lyapunov exp')) % алгоритм Вольфа для показателей Ляпунова
 time_series = readmatrix(['T10_66131_Lpf' num2str(file_num) '.txt']);
-cd(['C:\Users\MSI\Desktop\T-10 attractors']);
+cd(['C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis']);
 time = time_series(:,1);
 fp = time_series(:,2);
 
@@ -231,3 +232,11 @@ set(gca,'FontSize',16,'LineWidth',2);
 set(gcf,'Color','white');
 
 %% Lyapunov Exponents
+
+eRange = 200;
+lyapunovExponent(fp,Fs,10,L,'ExpansionRange',eRange)
+
+%%  MATLAB functions test 
+[~,eLag,eDim] = phaseSpaceReconstruction(fp);
+phaseSpaceReconstruction(fp,10,9);
+%%
