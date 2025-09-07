@@ -19,7 +19,7 @@ clc; clear all; close all; format compact;
 %
 %
 
-fname = 'Data.lor';
+fname = 'data.lor';
 
 datcnt = 16384;
 tau = 10;

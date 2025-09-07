@@ -10,8 +10,10 @@ file_num = 7;
     
 addpath(genpath('C:\Users\MSI\Desktop\Курчатовский институт\Т-10 Анализ рядов')) % вспомогательные функции и все такое
 addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\Wolf Lyapunov exp')) % алгоритм Вольфа для показателей Ляпунова
+addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\RecurrencePlot_ToolBox')) % FNN,Reccurence plot, mutual information)
 time_series = readmatrix(['T10_66131_Lpf' num2str(file_num) '.txt']);
 cd(['C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis']);
+addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis'));
 time = time_series(:,1);
 fp = time_series(:,2);
 
@@ -231,12 +233,39 @@ view(45,30);
 set(gca,'FontSize',16,'LineWidth',2);
 set(gcf,'Color','white');
 
-%% Lyapunov Exponents
+%%  MATLAB functions test 
 
-eRange = 200;
+
+eRange = 20;
 lyapunovExponent(fp,Fs,10,L,'ExpansionRange',eRange)
 
-%%  MATLAB functions test 
 [~,eLag,eDim] = phaseSpaceReconstruction(fp);
 phaseSpaceReconstruction(fp,10,9);
-%%
+% медленно работают, энтропию посчитать не тянут. Показатели ляпунова тоже
+% не могут. Поэтому подтягиваем сторонние тулбоксы 
+
+%% Data prep for Lyapunov exponents by Wolf et al.
+
+fname = 'data.txt';
+writematrix(fp,fname)
+
+%% Wolf's Algo for Lyapunov Exponents
+
+datcnt = 16340;
+tau = 10;
+ndim = 3;
+ires = 10;
+maxbox = 6000;
+
+db = basgen(fname, tau, ndim, ires, datcnt, maxbox);
+
+% dt = 1e-6;
+evolve = 20;
+dismin = 0.001;
+dismax = 0.3;
+thmax = 30;
+
+[out, SUM] = fet(db, dt, evolve, dismin, dismax, thmax);
+
+makeplot(db, out, evolve, 'NorthWest') % в figure будет значение старшей экспоненты Ляпунова
+% либо последняя строка последний столбик в fetout.txt
