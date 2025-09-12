@@ -11,6 +11,7 @@ file_num = 7;
 addpath(genpath('C:\Users\MSI\Desktop\Курчатовский институт\Т-10 Анализ рядов')) % вспомогательные функции и все такое
 addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\Wolf Lyapunov exp')) % алгоритм Вольфа для показателей Ляпунова
 addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\RecurrencePlot_ToolBox')) % FNN,Reccurence plot, mutual information)
+addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis\alpha_stable_distribution')) % for Levi process test
 time_series = readmatrix(['T10_66131_Lpf' num2str(file_num) '.txt']);
 cd(['C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis']);
 addpath(genpath('C:\Users\MSI\Documents\GitHub\T-10-Nonlinear-analysis'));
@@ -36,7 +37,7 @@ set(gcf, 'Color', 'white')
 
 % Выбираем для анализа интервал по времени 
 time_min = 400;
-time_max = 900;
+time_max = 600;
 % Создаем маску для индексов
 mask = (time >= time_min) & (time <= time_max);
 % Извлекаем данные
@@ -269,3 +270,66 @@ thmax = 30;
 
 makeplot(db, out, evolve, 'NorthWest') % в figure будет значение старшей экспоненты Ляпунова
 % либо последняя строка последний столбик в fetout.txt
+
+
+%% Levi process test
+% Проверка временного ряда на процесс Леви
+
+
+% 1. Приращения
+dX = diff(fp);
+
+% 2. Проверка независимости (автокорреляция приращений)
+figure;
+subplot(2,2,1)
+autocorr(dX)
+title('Autocorrelation of increments')
+
+subplot(2,2,2)
+parcorr(dX)
+title('Partial autocorrelation of increments')
+
+% 3. Проверка стационарности приращений (визуально)
+subplot(2,2,3)
+histogram(dX(1:floor(end/2)), 'Normalization','pdf')
+hold on
+histogram(dX(floor(end/2)+1:end), 'Normalization','pdf')
+legend('1-я половина','2-я половина')
+title('Сравнение распределений приращений')
+
+% 4. Подгонка устойчивого распределения
+% Для этого нужен Stable Distribution Toolbox с FileExchange:
+% https://www.mathworks.com/matlabcentral/fileexchange/37514-stable-distribution
+% (функции stabfit, stblrnd и т.п.)
+
+try
+    params = stblfit(dX);  % [alpha, beta, gamma, delta]
+    alpha = params(1); beta = params(2);
+    gamma = params(3); delta = params(4);
+
+    fprintf('Оцененные параметры устойчивого распределения:\n');
+    fprintf('alpha = %.3f, beta = %.3f, gamma = %.3f, delta = %.3f\n',...
+        alpha, beta, gamma, delta);
+
+    % 5. Проверка согласия (К-С тест)
+    pd = makedist('Stable','alpha',alpha,'beta',beta,...
+                           'gam',gamma,'delta',delta);
+    [h,p] = kstest(dX,'CDF',pd);
+
+    if h == 0
+        fprintf('KS-тест: распределение приращений совместимо с устойчивым (p=%.4f)\n', p);
+    else
+        fprintf('KS-тест: распределение приращений НЕ совместимо с устойчивым (p=%.4f)\n', p);
+    end
+
+catch
+    warning(['Не найден Stable Distribution Toolbox. ', ...
+             'Скачайте с File Exchange для оценки параметров.']);
+end
+
+%% additional tests for levi process
+[h, pValue] = lbqtest(dX);
+
+histogram(dX,'Normalization','pdf');
+set(gca,'YScale','log');
+set(gca,"XScale",'log')
